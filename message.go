@@ -24,7 +24,7 @@ type IDer interface {
 }
 
 type Message[T any] struct {
-	IDer
+	IDer      `json:"-"`
 	Type      string    `json:"type"`
 	ID        string    `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
@@ -102,7 +102,7 @@ func (ms MessageStream[T]) processQueueMessage(qm QueueMessage, mr MessageReceiv
 	var m Message[T]
 	var err error
 
-	if err := m.deserialize(qm.Message(), ms.SerDe); err != nil {
+	if err := m.deserialize(qm, ms.SerDe); err != nil {
 		logIfErrWithMsg(ms.Logger, err, "failed to deserialize message")
 		result = HandlerResultFail
 	} else {
