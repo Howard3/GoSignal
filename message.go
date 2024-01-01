@@ -15,7 +15,7 @@ const (
 
 type SerDe[T any] interface {
 	Serialize(Message[T]) ([]byte, error)
-	Deserialize([]byte) (Message[T], error)
+	Deserialize([]byte, *Message[T]) error
 }
 
 type IDer interface {
@@ -23,25 +23,31 @@ type IDer interface {
 	SetID(string)
 }
 
-type Metadata interface {
-	GetMetadata() *MessageMetadata
-}
-
-type Message[T any] interface {
+type Message[T any] struct {
 	IDer
-	Metadata
-	Set(T) error
-	Get() (T, error)
-	Type() string
+	Type      string    `json:"type"`
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	Attempts  int       `json:"-"`
+	Payload   T         `json:"payload"`
 }
 
-type MessageMetadata struct {
-	CreatedAt time.Time
-	Attempts  int
+func (m *Message[T]) serialize(s SerDe[T]) ([]byte, error) {
+	m.ID = m.GetID() // copy ID from IDer to ID field so it gets serialized
+	return s.Serialize(*m)
+}
+
+func (m *Message[T]) deserialize(qm QueueMessage, s SerDe[T]) error {
+	if err := s.Deserialize(qm.Message(), m); err != nil {
+		return err
+	}
+
+	m.SetID(m.ID)              // copy ID from ID field to IDer
+	m.Attempts = qm.Attempts() // copy attempts from queue message to message
+	return nil
 }
 
 type MessageReceiver[T any] interface {
-	MessageStream() MessageStream[T]
 	Receive(Message[T]) HandlerResult
 }
 
@@ -53,7 +59,7 @@ type MessageStream[T any] struct {
 
 // Send sends a message to the queue.
 func (ms MessageStream[T]) Send(m Message[T]) error {
-	serialized, err := ms.SerDe.Serialize(m)
+	serialized, err := m.serialize(ms.SerDe)
 	if err != nil {
 		return fmt.Errorf("failed to serialize message: %w", err)
 	}
@@ -93,9 +99,10 @@ func (ms MessageStream[T]) queueMessageIterator(ch chan QueueMessage, mr Message
 
 func (ms MessageStream[T]) processQueueMessage(qm QueueMessage, mr MessageReceiver[T]) {
 	var result HandlerResult
+	var m Message[T]
+	var err error
 
-	m, err := ms.SerDe.Deserialize(qm.Message())
-	if err != nil {
+	if err := m.deserialize(qm.Message(), ms.SerDe); err != nil {
 		logIfErrWithMsg(ms.Logger, err, "failed to deserialize message")
 		result = HandlerResultFail
 	} else {
