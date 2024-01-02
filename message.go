@@ -64,7 +64,7 @@ func (ms MessageStream[T]) Send(m Message[T]) error {
 		return fmt.Errorf("failed to serialize message: %w", err)
 	}
 
-	return ms.Queue.Send(serialized)
+	return ms.Queue.Send(m.Type, serialized)
 }
 
 func (ms MessageStream[T]) RegisterReceiver(messageType string, mr MessageReceiver[T]) error {
