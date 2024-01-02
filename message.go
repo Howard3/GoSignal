@@ -52,9 +52,9 @@ type MessageReceiver[T any] interface {
 }
 
 type MessageStream[T any] struct {
-	QueueDriver QueueDriver
-	Logger      Logger
-	SerDe       SerDe[T]
+	Queue  Queue
+	Logger Logger
+	SerDe  SerDe[T]
 }
 
 // Send sends a message to the queue.
@@ -64,13 +64,13 @@ func (ms MessageStream[T]) Send(m Message[T]) error {
 		return fmt.Errorf("failed to serialize message: %w", err)
 	}
 
-	return ms.QueueDriver.Send(serialized)
+	return ms.Queue.Send(serialized)
 }
 
-func (ms MessageStream[T]) RegisterReceiver(mr MessageReceiver[T]) error {
+func (ms MessageStream[T]) RegisterReceiver(messageType string, mr MessageReceiver[T]) error {
 	var err error
 	switch {
-	case ms.QueueDriver == nil:
+	case ms.Queue == nil:
 		err = fmt.Errorf("queue driver not set on message stream")
 	case ms.SerDe == nil:
 		err = fmt.Errorf("serializer/deserializer not set on message stream")
@@ -83,7 +83,7 @@ func (ms MessageStream[T]) RegisterReceiver(mr MessageReceiver[T]) error {
 	}
 
 	ch := make(chan QueueMessage)
-	if err := ms.QueueDriver.Subscribe(ch); err != nil {
+	if err := ms.Queue.Subscribe(messageType, ch); err != nil {
 		return fmt.Errorf("failed to subscribe to queue: %w", err)
 	}
 

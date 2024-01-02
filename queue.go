@@ -1,8 +1,8 @@
 package gosignal
 
-type QueueDriver interface {
-	Send([]byte) error
-	Subscribe(chan QueueMessage) error
+type Queue interface {
+	Send(messageType string, message []byte) error
+	Subscribe(messageType string, ch chan QueueMessage) error
 }
 
 type QueueMessage interface {
