@@ -3,6 +3,7 @@ package queue
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Howard3/gosignal"
 )
@@ -37,8 +38,10 @@ func (q *MemoryQueue) Send(messageType string, b []byte) error {
 	}
 
 	m := &MemoryQueueMessage{
-		attempts: 0,
-		message:  b,
+		attempts:    0,
+		message:     b,
+		queue:       q,
+		messageType: messageType,
 	}
 
 	go q.sendToChannels(channels, m)
@@ -59,8 +62,14 @@ func (q *MemoryQueue) Subscribe(messageType string, ch chan gosignal.QueueMessag
 }
 
 type MemoryQueueMessage struct {
-	attempts int
-	message  []byte
+	attempts    int
+	message     []byte
+	queue       *MemoryQueue
+	messageType string
+}
+
+func (mqm *MemoryQueueMessage) Type() string {
+	return mqm.messageType
 }
 
 func (mqm *MemoryQueueMessage) Attempts() int {
@@ -75,6 +84,8 @@ func (mqm *MemoryQueueMessage) Ack() error {
 func (mqm *MemoryQueueMessage) Nack() error {
 	return nil
 }
-func (mqm *MemoryQueueMessage) Retry() error {
-	return nil
+func (mqm *MemoryQueueMessage) Retry(rp gosignal.RetryParams) error {
+	time.Sleep(rp.BackoffUntil.Sub(time.Now()))
+	mqm.attempts++
+	return mqm.queue.Send(mqm.messageType, mqm.message)
 }

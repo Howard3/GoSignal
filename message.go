@@ -20,7 +20,7 @@ type SerDe[T any] interface {
 
 type IDer interface {
 	GetID() string
-	SetID(string)
+	SetID(string) error
 }
 
 type Message[T any] struct {
@@ -114,8 +114,9 @@ func (ms MessageStream[T]) processQueueMessage(qm QueueMessage, mr MessageReceiv
 		err = qm.Ack()
 		logIfErrWithMsg(ms.Logger, err, "failed to ack message")
 	case HandlerResultRetry:
-		//TODO: increment attempts?
-		err = qm.Retry()
+		err = qm.Retry(RetryParams{
+			BackoffUntil: time.Now().Add(time.Second), // TODO: make this configurable
+		})
 		logIfErrWithMsg(ms.Logger, err, "failed to retry message")
 	case HandlerResultFail:
 		err = qm.Nack()

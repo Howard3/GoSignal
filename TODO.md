@@ -1,0 +1,4 @@
+- Event Sourcing support
+    - Entity ID support
+- IDers without dependencies
+- 
