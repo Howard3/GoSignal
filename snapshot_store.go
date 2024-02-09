@@ -18,18 +18,21 @@ var ErrSnapshotFailed = errors.New("snapshot failed")
 // it is joined with the underlying error
 var ErrFailedToExportState = errors.New("failed to export state")
 
+// Snapshot is a snapshot of the state of an aggregate
 type Snapshot struct {
-	Data      []byte
-	Timestamp time.Time
-	Version   uint
+	Data      []byte    `json:"data"`
+	Timestamp time.Time `json:"timestamp"`
+	Version   uint      `json:"version"`
 }
 
+// SnapshotStrategy is an adaptable strategy for when to take a snapshot
 type SnapshotStrategy interface {
 	ShouldSnapshot(snapshot *Snapshot, events []Event) bool
 	RegisterStore(store SnapshotStore)
 	GetStore() SnapshotStore
 }
 
+// SnapshotStore is the interface that wraps the basic snapshot store operations
 type SnapshotStore interface {
 	Load(ctx context.Context, id string) (Snapshot, error)
 	Store(ctx context.Context, aggregateID string, snapshot Snapshot) error
