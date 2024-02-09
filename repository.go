@@ -103,9 +103,15 @@ func (r *Repository) Store(ctx context.Context, aggID string, events []Event) er
 
 // Load loads an aggregate from the event store, reconstructing it from its events and snapshot
 func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate, opts ...loadOption) error {
-	snapshot, err := r.snapshotLoader(ctx, aggID)
-	if err != nil {
-		return err
+	var err error
+	var snapshot *Snapshot
+
+	options := applyLoadOptions(opts)
+	if !options.skipSnapshot {
+		snapshot, err = r.snapshotLoader(ctx, aggID)
+		if err != nil {
+			return err
+		}
 	}
 
 	if snapshot != nil {
@@ -121,7 +127,7 @@ func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate
 		return errors.Join(ErrApplyingEvent, err)
 	}
 
-	if r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
+	if !options.skipSnapshot && r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
 		if err := r.generateSnapshot(ctx, aggID, aggregate); err != nil {
 			return errors.Join(ErrSnapshotFailed, err)
 		}
