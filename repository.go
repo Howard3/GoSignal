@@ -102,7 +102,7 @@ func (r *Repository) Store(ctx context.Context, aggID string, events []Event) er
 }
 
 // Load loads an aggregate from the event store, reconstructing it from its events and snapshot
-func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate, opts ...loadOption) error {
+func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts ...loadOption) error {
 	var err error
 	var snapshot *Snapshot
 
@@ -114,8 +114,15 @@ func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate
 		}
 	}
 
-	if snapshot != nil {
+	// we need to not use the snapshot, and skip snapshot generation if the max version is lower than the snapshot
+	maxVerLowerThanSnapshot := options.lev.MaxVersion != nil && snapshot.Version > *options.lev.MaxVersion
+	options.skipSnapshot = options.skipSnapshot || maxVerLowerThanSnapshot
+
+	if !maxVerLowerThanSnapshot && snapshot != nil {
 		opts = append(opts, WithMinVersion(snapshot.Version+1)) // load events after the snapshot
+		if err = agg.ImportState(snapshot.Data); err != nil {
+			return errors.Join(ErrFailedToLoadSnapshot, err)
+		}
 	}
 
 	events, err := r.LoadEvents(ctx, aggID, opts...)
@@ -123,12 +130,12 @@ func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate
 		return errors.Join(ErrLoadingEvents, err)
 	}
 
-	if err := r.applyEvents(aggregate, events); err != nil {
+	if err := r.applyEvents(agg, events); err != nil {
 		return errors.Join(ErrApplyingEvent, err)
 	}
 
 	if !options.skipSnapshot && r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
-		if err := r.generateSnapshot(ctx, aggID, aggregate); err != nil {
+		if err := r.generateSnapshot(ctx, aggID, agg); err != nil {
 			return errors.Join(ErrSnapshotFailed, err)
 		}
 	}
