@@ -91,8 +91,8 @@ type Repository struct {
 }
 
 // NewRepository creates a new repository
-func NewRepository(eventStore EventStore) *Repository {
-	return &Repository{eventStore: eventStore}
+func NewRepository(es EventStore, ss SnapshotStrategy) *Repository {
+	return &Repository{eventStore: es, snapshotStrategy: ss}
 }
 
 // Store stores events in the event store
