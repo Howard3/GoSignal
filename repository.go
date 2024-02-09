@@ -1,6 +1,7 @@
 package gosignal
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -31,14 +32,16 @@ type loadOptions struct {
 type loadOption func(*loadOptions)
 
 // WithMinVersion sets the minimum version of the aggregate to load
-func WithMinVersion(minVersion int) loadOption {
+// NOTE: USE WITH CAUTION. Using incorrectly could result in an inconsistent state for your aggregate
+func WithMinVersion(minVersion uint) loadOption {
 	return func(opts *loadOptions) {
 		opts.lev.MinVersion = &minVersion
 	}
 }
 
 // WithMaxVersion sets the maximum version of the aggregate to load
-func WithMaxVersion(maxVersion int) loadOption {
+// can be used to load a specific version of the aggregate
+func WithMaxVersion(maxVersion uint) loadOption {
 	return func(opts *loadOptions) {
 		opts.lev.MaxVersion = &maxVersion
 	}
@@ -83,7 +86,8 @@ func applyLoadOptions(options []loadOption) loadOptions {
 
 // Repository is a struct that interacts with the event store, snapshot store, and aggregate
 type Repository struct {
-	eventStore EventStore
+	eventStore       EventStore
+	snapshotStrategy SnapshotStrategy
 }
 
 // NewRepository creates a new repository
@@ -93,19 +97,75 @@ func NewRepository(eventStore EventStore) *Repository {
 
 // Store stores events in the event store
 func (r *Repository) Store(aggregateID string, events []Event) error {
+	// TODO: publish events to event bus when it's successfully stored
 	return r.eventStore.Store(aggregateID, events)
 }
 
 // Load loads an aggregate from the event store, reconstructing it from its events and snapshot
-func (r *Repository) Load(aggregateID string, aggregate Aggregate, opts ...loadOption) error {
+func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate, opts ...loadOption) error {
 	// TODO: load snapshot, allow modifying options based on snapshot
 
-	events, err := r.LoadEvents(aggregateID, opts...)
+	snapshot, err := r.snapshotLoader(ctx, aggID)
 	if err != nil {
 		return err
 	}
 
-	return r.applyEvents(aggregate, events)
+	if snapshot != nil {
+		opts = append(opts, WithMinVersion(snapshot.Version+1)) // load events after the snapshot
+	}
+
+	events, err := r.LoadEvents(ctx, aggID, opts...)
+	if err != nil {
+		return errors.Join(ErrLoadingEvents, err)
+	}
+
+	if err := r.applyEvents(aggregate, events); err != nil {
+		return errors.Join(ErrApplyingEvent, err)
+	}
+
+	if r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
+		if err := r.generateSnapshot(ctx, aggID, aggregate); err != nil {
+			return errors.Join(ErrSnapshotFailed, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *Repository) generateSnapshot(ctx context.Context, aggID string, agg Aggregate) error {
+	if r.snapshotStrategy == nil || r.snapshotStrategy.GetStore() == nil {
+		return nil // nothing to do
+	}
+
+	state, err := agg.ExportState()
+	if err != nil {
+		return errors.Join(ErrFailedToExportState, err)
+	}
+
+	ss := Snapshot{
+		Data:      state,
+		Timestamp: time.Now(),
+		Version:   agg.Version(),
+	}
+
+	if err := r.snapshotStrategy.GetStore().Store(ctx, aggID, ss); err != nil {
+		return errors.Join(ErrFailedToExportState, err)
+	}
+
+	return nil
+}
+
+func (r *Repository) snapshotLoader(ctx context.Context, aggID string) (*Snapshot, error) {
+	if r.snapshotStrategy == nil || r.snapshotStrategy.GetStore() == nil {
+		return nil, nil // nothing to do
+	}
+
+	snapshot, err := r.snapshotStrategy.GetStore().Load(ctx, aggID)
+	if err != nil {
+		return nil, errors.Join(ErrFailedToLoadSnapshot, err)
+	}
+
+	return &snapshot, nil
 }
 
 func (r *Repository) applyEvents(aggregate Aggregate, events []Event) error {
@@ -118,7 +178,7 @@ func (r *Repository) applyEvents(aggregate Aggregate, events []Event) error {
 }
 
 // LoadEvents loads events from the event store
-func (r *Repository) LoadEvents(aggregateID string, opts ...loadOption) ([]Event, error) {
+func (r *Repository) LoadEvents(ctx context.Context, aggregateID string, opts ...loadOption) ([]Event, error) {
 	options := applyLoadOptions(opts)
 	event, err := r.eventStore.Load(aggregateID, *options.lev)
 	if err != nil {
@@ -133,8 +193,8 @@ func (r *Repository) LoadEvents(aggregateID string, opts ...loadOption) ([]Event
 // legal compliance reasons, otherwise your event store should be append-only
 // NOTE: Pass an empty aggregate in, as this function will replay all events on the aggregate
 // and apply the new event, this is to ensure that the aggregate is in the correct state
-func (r *Repository) ReplaceVersion(id string, agg Aggregate, v uint, e Event) error {
-	events, err := r.LoadEvents(id, WithMaxVersion(int(v)))
+func (r *Repository) ReplaceVersion(ctx context.Context, string, aggID string, agg Aggregate, v uint, e Event) error {
+	events, err := r.LoadEvents(ctx, aggID, WithMaxVersion(v))
 	if err != nil {
 		return errors.Join(ErrReplacingVersion, err)
 	}
@@ -153,7 +213,7 @@ func (r *Repository) ReplaceVersion(id string, agg Aggregate, v uint, e Event) e
 		return errors.Join(ErrReplacingVersion, err)
 	}
 
-	if err := r.eventStore.Replace(id, v, e); err != nil {
+	if err := r.eventStore.Replace(aggID, v, e); err != nil {
 		return errors.Join(ErrReplacingVersion, err)
 	}
 

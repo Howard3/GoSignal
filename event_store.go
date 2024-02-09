@@ -16,8 +16,8 @@ type EventStore interface {
 
 // LoadEventsOptions represents the options that can be passed to the Load method
 type LoadEventsOptions struct {
-	MinVersion *int       // the minimum version of the aggregate to load
-	MaxVersion *int       // the maximum version of the aggregate to load
+	MinVersion *uint      // the minimum version of the aggregate to load
+	MaxVersion *uint      // the maximum version of the aggregate to load
 	EventTypes []string   // the types of events to load, if empty all events are loaded
 	FromTime   *time.Time // the time from which to load events
 	ToTime     *time.Time // the time to which to load events
