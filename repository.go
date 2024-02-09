@@ -96,15 +96,13 @@ func NewRepository(eventStore EventStore) *Repository {
 }
 
 // Store stores events in the event store
-func (r *Repository) Store(aggregateID string, events []Event) error {
+func (r *Repository) Store(ctx context.Context, aggID string, events []Event) error {
 	// TODO: publish events to event bus when it's successfully stored
-	return r.eventStore.Store(aggregateID, events)
+	return r.eventStore.Store(ctx, aggID, events)
 }
 
 // Load loads an aggregate from the event store, reconstructing it from its events and snapshot
 func (r *Repository) Load(ctx context.Context, aggID string, aggregate Aggregate, opts ...loadOption) error {
-	// TODO: load snapshot, allow modifying options based on snapshot
-
 	snapshot, err := r.snapshotLoader(ctx, aggID)
 	if err != nil {
 		return err
@@ -180,7 +178,7 @@ func (r *Repository) applyEvents(aggregate Aggregate, events []Event) error {
 // LoadEvents loads events from the event store
 func (r *Repository) LoadEvents(ctx context.Context, aggregateID string, opts ...loadOption) ([]Event, error) {
 	options := applyLoadOptions(opts)
-	event, err := r.eventStore.Load(aggregateID, *options.lev)
+	event, err := r.eventStore.Load(ctx, aggregateID, *options.lev)
 	if err != nil {
 		return nil, errors.Join(ErrLoadingEvents, err)
 	}
@@ -213,7 +211,7 @@ func (r *Repository) ReplaceVersion(ctx context.Context, string, aggID string, a
 		return errors.Join(ErrReplacingVersion, err)
 	}
 
-	if err := r.eventStore.Replace(aggID, v, e); err != nil {
+	if err := r.eventStore.Replace(ctx, aggID, v, e); err != nil {
 		return errors.Join(ErrReplacingVersion, err)
 	}
 

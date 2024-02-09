@@ -3,6 +3,7 @@ package queue
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Howard3/gosignal"
@@ -11,7 +12,28 @@ import (
 var ErrQueueDoesNotExist = errors.New("queue does not exist")
 
 type MemoryQueue struct {
-	channels map[string][]chan gosignal.QueueMessage
+	channels map[string]memoryChannel
+}
+
+type memoryChannel struct {
+	ch       chan gosignal.QueueMessage
+	c        *sync.Cond
+	handlers []func(gosignal.QueueMessage)
+	stopped  bool
+}
+
+func (mc *memoryChannel) registerHandler(handler func(gosignal.QueueMessage)) {
+	mc.handlers = append(mc.handlers, handler)
+}
+
+func (mc *memoryChannel) start() {
+	mc.c.L.Lock()
+	defer mc.c.L.Unlock()
+
+	for !mc.stopped {
+
+		mc.c.Wait()
+	}
 }
 
 func (q *MemoryQueue) hasChannelForType(messageType string) bool {
