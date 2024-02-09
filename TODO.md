@@ -1,4 +1,2 @@
-- Event Sourcing support
-    - Entity ID support
 - IDers without dependencies
 - Memory Queue Testing
