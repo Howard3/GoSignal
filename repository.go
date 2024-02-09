@@ -32,7 +32,8 @@ type loadOptions struct {
 type loadOption func(*loadOptions)
 
 // WithMinVersion sets the minimum version of the aggregate to load
-// NOTE: USE WITH CAUTION. Using incorrectly could result in an inconsistent state for your aggregate
+// NOTE: this will lead to inconsistent state if you're loading against an aggregate. Only use
+// this if you're directly querying events.
 func WithMinVersion(minVersion uint) loadOption {
 	return func(opts *loadOptions) {
 		opts.lev.MinVersion = &minVersion
@@ -48,6 +49,8 @@ func WithMaxVersion(maxVersion uint) loadOption {
 }
 
 // WithEventTypes sets the event types to load
+// NOTE: this will lead to inconsistent state if you're loading against an aggregate. Only use
+// this if you're directly querying events.
 func WithEventTypes(eventTypes ...string) loadOption {
 	return func(opts *loadOptions) {
 		opts.lev.EventTypes = eventTypes
@@ -55,6 +58,8 @@ func WithEventTypes(eventTypes ...string) loadOption {
 }
 
 // WithFromTime sets the time from which to load events
+// NOTE: this will lead to inconsistent state if you're loading against an aggregate. Only use
+// this if you're directly querying events.
 func WithFromTime(fromTime time.Time) loadOption {
 	return func(opts *loadOptions) {
 		opts.lev.FromTime = &fromTime
@@ -68,7 +73,8 @@ func WithToTime(toTime time.Time) loadOption {
 	}
 }
 
-// WithSkipSnapshot skips loading the
+// WithSkipSnapshot skips loading the snapshot and generating a new on Load against an aggregate
+// this has no effect when loading events directly.
 func WithSkipSnapshot() loadOption {
 	return func(opts *loadOptions) {
 		opts.skipSnapshot = true
