@@ -1,9 +1,11 @@
-package gosignal
+package sourcing
 
 import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/Howard3/gosignal"
 )
 
 // ErrFailedToLoadSnapshot is the error returned when an error occurs while loading a snapshot
@@ -27,7 +29,7 @@ type Snapshot struct {
 
 // SnapshotStrategy is an adaptable strategy for when to take a snapshot
 type SnapshotStrategy interface {
-	ShouldSnapshot(snapshot *Snapshot, events []Event) bool
+	ShouldSnapshot(snapshot *Snapshot, events []gosignal.Event) bool
 	RegisterStore(store SnapshotStore)
 	GetStore() SnapshotStore
 }

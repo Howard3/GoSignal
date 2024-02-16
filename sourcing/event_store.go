@@ -1,20 +1,22 @@
-package gosignal
+package sourcing
 
 import (
 	"context"
 	"time"
+
+	"github.com/Howard3/gosignal"
 )
 
 // EventStore is the interface that wraps the basic event store operations
 // it reperents some form of storage for your event sourcing solution.
 type EventStore interface {
 	// Store stores a list of events for a given aggregate id
-	Store(ctx context.Context, aggID string, events []Event) error
+	Store(ctx context.Context, aggID string, events []gosignal.Event) error
 	// Load loads all events for a given aggregate id
-	Load(ctx context.Context, aggID string, options LoadEventsOptions) ([]Event, error)
+	Load(ctx context.Context, aggID string, options LoadEventsOptions) ([]gosignal.Event, error)
 	// Replace replaces an event with a new version, this mostly exists for legal compliance
 	// purposes, your event store should be append-only
-	Replace(ctx context.Context, id string, version uint, event Event) error
+	Replace(ctx context.Context, id string, version uint, event gosignal.Event) error
 }
 
 // LoadEventsOptions represents the options that can be passed to the Load method
