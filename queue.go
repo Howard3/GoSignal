@@ -4,7 +4,8 @@ import "time"
 
 type Queue interface {
 	Send(messageType string, message []byte) error
-	Subscribe(messageType string, ch chan QueueMessage) error
+	Subscribe(messageType string) (id string, ch chan QueueMessage, err error)
+	Unsubscribe(messageType, id string) error
 }
 
 type QueueMessage interface {

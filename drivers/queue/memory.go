@@ -1,113 +1,87 @@
 package queue
 
 import (
-	"errors"
 	"fmt"
-	"sync"
+	"strconv"
 	"time"
 
 	"github.com/Howard3/gosignal"
 )
 
-var ErrQueueDoesNotExist = errors.New("queue does not exist")
-
 type MemoryQueue struct {
-	channels map[string]memoryChannel
+	Queue map[string]map[uint]chan gosignal.QueueMessage
 }
 
-type memoryChannel struct {
-	ch       chan gosignal.QueueMessage
-	c        *sync.Cond
-	handlers []func(gosignal.QueueMessage)
-	stopped  bool
-}
-
-func (mc *memoryChannel) registerHandler(handler func(gosignal.QueueMessage)) {
-	mc.handlers = append(mc.handlers, handler)
-}
-
-func (mc *memoryChannel) start() {
-	mc.c.L.Lock()
-	defer mc.c.L.Unlock()
-
-	for !mc.stopped {
-
-		mc.c.Wait()
-	}
-}
-
-func (q *MemoryQueue) hasChannelForType(messageType string) bool {
-	if q.channels == nil {
-		return false
+func (mq *MemoryQueue) Send(messageType string, message []byte) error {
+	if _, ok := mq.Queue[messageType]; !ok {
+		return fmt.Errorf("message type %s not found", messageType)
 	}
 
-	_, ok := q.channels[messageType]
-	return ok
-}
-
-func (q *MemoryQueue) getChannelsForType(messageType string) []chan gosignal.QueueMessage {
-	if !q.hasChannelForType(messageType) {
-		return nil
+	for _, ch := range mq.Queue[messageType] {
+		// TODO: make non-blocking on multiple.
+		ch <- &MemoryQueueMessage{
+			message: message,
+			mType:   messageType,
+		}
 	}
-
-	return q.channels[messageType]
-}
-
-func (q *MemoryQueue) Send(messageType string, b []byte) error {
-	channels := q.getChannelsForType(messageType)
-	if channels == nil {
-		return fmt.Errorf("%w: %s", ErrQueueDoesNotExist, messageType)
-	}
-
-	m := &MemoryQueueMessage{
-		attempts:    0,
-		message:     b,
-		queue:       q,
-		messageType: messageType,
-	}
-
-	go q.sendToChannels(channels, m)
 
 	return nil
 }
 
-func (q *MemoryQueue) sendToChannels(channels []chan gosignal.QueueMessage, m gosignal.QueueMessage) {
-	for _, ch := range channels {
-		// TODO: potentially blocking on one send if a channel is blocked, also could cause a panic.
-		ch <- m
+func (mq *MemoryQueue) Subscribe(messageType string) (string, chan gosignal.QueueMessage, error) {
+	if _, ok := mq.Queue[messageType]; !ok {
+		mq.Queue[messageType] = make(map[uint]chan gosignal.QueueMessage, 0)
 	}
+
+	ch := make(chan gosignal.QueueMessage)
+	id := uint(time.Now().UnixMicro())
+
+	mq.Queue[messageType][id] = ch
+
+	return fmt.Sprintf("%d", id), ch, nil
 }
 
-func (q *MemoryQueue) Subscribe(messageType string, ch chan gosignal.QueueMessage) error {
-	q.channels[messageType] = append(q.channels[messageType], ch)
+func (mq *MemoryQueue) Unsubscribe(messageType, sid string) error {
+	if _, ok := mq.Queue[messageType]; !ok {
+		return fmt.Errorf("message type %s not found", messageType)
+	}
+
+	id, err := strconv.Atoi(sid)
+	if err != nil {
+		return fmt.Errorf("id %s is not a valid id", sid)
+	}
+
+	uid := uint(id)
+
+	if _, ok := mq.Queue[messageType][uid]; !ok {
+		return fmt.Errorf("id %d not found", id)
+	}
+
+	delete(mq.Queue[messageType], uid)
+
 	return nil
 }
 
 type MemoryQueueMessage struct {
-	attempts    int
-	message     []byte
-	queue       *MemoryQueue
-	messageType string
+	message []byte
+	mType   string
 }
 
-func (mqm *MemoryQueueMessage) Type() string {
-	return mqm.messageType
+func (MemoryQueueMessage) Attempts() int {
+	return 0
 }
-
-func (mqm *MemoryQueueMessage) Attempts() int {
-	return mqm.attempts
-}
-func (mqm *MemoryQueueMessage) Message() []byte {
+func (mqm MemoryQueueMessage) Message() []byte {
 	return mqm.message
 }
-func (mqm *MemoryQueueMessage) Ack() error {
-	return nil
+func (MemoryQueueMessage) Ack() error {
+	panic("not implemented") // TODO: Implement
 }
-func (mqm *MemoryQueueMessage) Nack() error {
-	return nil
+func (MemoryQueueMessage) Nack() error {
+	panic("not implemented") // TODO: Implement
 }
-func (mqm *MemoryQueueMessage) Retry(rp gosignal.RetryParams) error {
-	time.Sleep(rp.BackoffUntil.Sub(time.Now()))
-	mqm.attempts++
-	return mqm.queue.Send(mqm.messageType, mqm.message)
+func (MemoryQueueMessage) Retry(gosignal.RetryParams) error {
+	panic("not implemented") // TODO: Implement
+}
+func (mqm MemoryQueueMessage) Type() string {
+	return mqm.mType
 }
