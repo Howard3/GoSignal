@@ -30,7 +30,6 @@ type Snapshot struct {
 // SnapshotStrategy is an adaptable strategy for when to take a snapshot
 type SnapshotStrategy interface {
 	ShouldSnapshot(snapshot *Snapshot, events []gosignal.Event) bool
-	RegisterStore(store SnapshotStore)
 	GetStore() SnapshotStore
 }
 
