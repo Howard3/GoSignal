@@ -26,21 +26,68 @@ var ErrNoEvents = errors.New("no events found")
 // ErrVersionNotFound is the error returned when a version is not found
 var ErrVersionNotFound = errors.New("version not found")
 
+// ErrStoringEvents is the error returned when an error occurs while storing events
+// it is joined with the underlying error
+var ErrStoringEvents = errors.New("error storing events")
+
+// ErrNoQueueDefined is the error returned when no queue is defined
+// This occurs when trying to store events but you don't have a queue attached
+var ErrNoQueueDefined = errors.New("no queue defined")
+
 // Repository is a struct that interacts with the event store, snapshot store, and aggregate
 type Repository struct {
 	eventStore       EventStore
 	snapshotStrategy SnapshotStrategy
+	queue            gosignal.Queue
+}
+
+type NewRepoOptions func(*Repository)
+
+func WithEventStore(es EventStore) func(*Repository) {
+	return func(r *Repository) {
+		r.eventStore = es
+	}
+}
+
+func WithSnapshotStrategy(ss SnapshotStrategy) func(*Repository) {
+	return func(r *Repository) {
+		r.snapshotStrategy = ss
+	}
+}
+
+func WithQueue(q gosignal.Queue) func(*Repository) {
+	return func(r *Repository) {
+		r.queue = q
+	}
 }
 
 // NewRepository creates a new repository
-func NewRepository(es EventStore, ss SnapshotStrategy) *Repository {
-	return &Repository{eventStore: es, snapshotStrategy: ss}
+func NewRepository(options ...NewRepoOptions) *Repository {
+	r := &Repository{}
+	for _, option := range options {
+		option(r)
+	}
+	return r
 }
 
 // Store stores events in the event store
 func (r *Repository) Store(ctx context.Context, aggID string, events []gosignal.Event) error {
-	// TODO: publish events to event bus when it's successfully stored
-	return r.eventStore.Store(ctx, aggID, events)
+	if r.queue == nil {
+		return ErrNoQueueDefined
+	}
+
+	if err := r.eventStore.Store(ctx, aggID, events); err != nil {
+		return errors.Join(ErrStoringEvents, err)
+	}
+
+	for _, event := range events {
+		if err := r.queue.Send(event.Type, event.Data); err != nil {
+			// NOTE: this should probably roll back the stored event. TBD on preferred behavior here.
+			return errors.Join(ErrStoringEvents, err)
+		}
+	}
+
+	return nil
 }
 
 // Load loads an aggregate from the event store, reconstructing it from its events and snapshot
