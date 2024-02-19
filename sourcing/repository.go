@@ -167,7 +167,7 @@ func (r *Repository) snapshotLoader(ctx context.Context, aggID string) (*Snapsho
 		return nil, errors.Join(ErrFailedToLoadSnapshot, err)
 	}
 
-	return &snapshot, nil
+	return snapshot, nil
 }
 
 func (r *Repository) applyEvents(aggregate Aggregate, events []gosignal.Event) error {

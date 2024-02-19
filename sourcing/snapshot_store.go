@@ -35,7 +35,7 @@ type SnapshotStrategy interface {
 
 // SnapshotStore is the interface that wraps the basic snapshot store operations
 type SnapshotStore interface {
-	Load(ctx context.Context, id string) (Snapshot, error)
+	Load(ctx context.Context, id string) (*Snapshot, error)
 	Store(ctx context.Context, aggregateID string, snapshot Snapshot) error
 	Delete(ctx context.Context, aggregateID string) error
 }
