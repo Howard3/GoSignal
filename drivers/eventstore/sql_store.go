@@ -28,7 +28,7 @@ import (
 // );
 // ```
 type SQLStore struct {
-	db        *sql.DB
+	DB        *sql.DB
 	TableName string
 }
 
@@ -39,7 +39,7 @@ func (ss SQLStore) Store(ctx context.Context, aggID string, events []gosignal.Ev
 		VALUES ($1, $2, $3, $4, $5)`,
 		ss.TableName)
 
-	tx, err := ss.db.BeginTx(ctx, nil)
+	tx, err := ss.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (ss SQLStore) Store(ctx context.Context, aggID string, events []gosignal.Ev
 // Load loads all events for a given aggregate id
 func (ss SQLStore) Load(ctx context.Context, aggID string, options sourcing.LoadEventsOptions) (evt []gosignal.Event, err error) {
 	query := fmt.Sprintf("SELECT type, data, version, timestamp FROM %s WHERE aggregate_id = $1", ss.TableName)
-	rows, err := ss.db.QueryContext(ctx, query, aggID)
+	rows, err := ss.DB.QueryContext(ctx, query, aggID)
 	if err != nil {
 		return nil, err
 	}
@@ -81,6 +81,6 @@ func (ss SQLStore) Load(ctx context.Context, aggID string, options sourcing.Load
 // purposes, your event store should be append-only
 func (ss SQLStore) Replace(ctx context.Context, id string, version uint, event gosignal.Event) error {
 	query := fmt.Sprintf("UPDATE %s SET type = $1, data = $2, version = $3, timestamp = $4 WHERE id = $5", ss.TableName)
-	_, err := ss.db.ExecContext(ctx, query, event.Type, event.Data, event.Version, event.Timestamp, id)
+	_, err := ss.DB.ExecContext(ctx, query, event.Type, event.Data, event.Version, event.Timestamp, id)
 	return err
 }

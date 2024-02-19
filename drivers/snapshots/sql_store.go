@@ -28,7 +28,7 @@ var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 // );
 // ```
 type SQLStore struct {
-	db        *sql.DB
+	DB        *sql.DB
 	TableName string
 }
 
@@ -37,7 +37,7 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = $1", ss.TableName)
 	snapshot := sourcing.Snapshot{}
 
-	row := ss.db.QueryRowContext(ctx, query, id)
+	row := ss.DB.QueryRowContext(ctx, query, id)
 	if err := row.Scan(&snapshot.Data, &snapshot.Version, &snapshot.Timestamp); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -52,13 +52,13 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 // Store stores a snapshot in the store
 func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourcing.Snapshot) error {
 	query := fmt.Sprintf("INSERT INTO %s (id, version, data, timestamp) VALUES ($1, $2, $3, $4)", ss.TableName)
-	_, err := ss.db.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, snapshot.Timestamp)
+	_, err := ss.DB.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, snapshot.Timestamp)
 	return err
 }
 
 // Delete deletes a snapshot from the store
 func (ss SQLStore) Delete(ctx context.Context, aggregateID string) error {
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", ss.TableName)
-	_, err := ss.db.ExecContext(ctx, query, aggregateID)
+	_, err := ss.DB.ExecContext(ctx, query, aggregateID)
 	return err
 }
