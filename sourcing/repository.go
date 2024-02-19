@@ -129,7 +129,8 @@ func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts
 		return errors.Join(ErrApplyingEvent, err)
 	}
 
-	if !opts.skipSnapshot && r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
+	skipSnapshot := opts.skipSnapshot || r.snapshotStrategy == nil
+	if !skipSnapshot && r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
 		if err := r.generateSnapshot(ctx, aggID, agg); err != nil {
 			return errors.Join(ErrSnapshotFailed, err)
 		}
