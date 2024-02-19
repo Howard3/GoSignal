@@ -11,7 +11,7 @@ import (
 // it reperents some form of storage for your event sourcing solution.
 type EventStore interface {
 	// Store stores a list of events for a given aggregate id
-	Store(ctx context.Context, aggID string, events []gosignal.Event) error
+	Store(ctx context.Context, events []gosignal.Event) error
 	// Load loads all events for a given aggregate id
 	Load(ctx context.Context, aggID string, options LoadEventsOptions) ([]gosignal.Event, error)
 	// Replace replaces an event with a new version, this mostly exists for legal compliance

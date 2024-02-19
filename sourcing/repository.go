@@ -71,12 +71,12 @@ func NewRepository(options ...NewRepoOptions) *Repository {
 }
 
 // Store stores events in the event store
-func (r *Repository) Store(ctx context.Context, aggID string, events []gosignal.Event) error {
+func (r *Repository) Store(ctx context.Context, events []gosignal.Event) error {
 	if r.queue == nil {
 		return ErrNoQueueDefined
 	}
 
-	if err := r.eventStore.Store(ctx, aggID, events); err != nil {
+	if err := r.eventStore.Store(ctx, events); err != nil {
 		return errors.Join(ErrStoringEvents, err)
 	}
 

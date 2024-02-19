@@ -36,7 +36,7 @@ type SQLStore struct {
 }
 
 // Store stores a list of events for a given aggregate id
-func (ss SQLStore) Store(ctx context.Context, aggID string, events []gosignal.Event) error {
+func (ss SQLStore) Store(ctx context.Context, events []gosignal.Event) error {
 	if ss.TableName == "" {
 		return ErrTableNameNotSet
 	}
@@ -52,7 +52,7 @@ func (ss SQLStore) Store(ctx context.Context, aggID string, events []gosignal.Ev
 	}
 
 	for _, event := range events {
-		_, err := tx.ExecContext(ctx, query, event.Type, event.Data, event.Version, event.Timestamp, aggID)
+		_, err := tx.ExecContext(ctx, query, event.Type, event.Data, event.Version, event.Timestamp, event.AggregateID)
 		if err != nil {
 			return errors.Join(err, tx.Rollback())
 		}
