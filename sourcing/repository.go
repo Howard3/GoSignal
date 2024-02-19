@@ -34,6 +34,10 @@ var ErrStoringEvents = errors.New("error storing events")
 // This occurs when trying to store events but you don't have a queue attached
 var ErrNoQueueDefined = errors.New("no queue defined")
 
+// ErrSendingEvent is the error returned when an error occurs while sending an event to the Queue
+// it is joined with the underlying error
+var ErrSendingEvent = errors.New("error sending event")
+
 // Repository is a struct that interacts with the event store, snapshot store, and aggregate
 type Repository struct {
 	eventStore       EventStore
@@ -83,7 +87,7 @@ func (r *Repository) Store(ctx context.Context, events []gosignal.Event) error {
 	for _, event := range events {
 		if err := r.queue.Send(event.Type, event.Data); err != nil {
 			// NOTE: this should probably roll back the stored event. TBD on preferred behavior here.
-			return errors.Join(ErrStoringEvents, err)
+			return errors.Join(ErrSendingEvent, err)
 		}
 	}
 
