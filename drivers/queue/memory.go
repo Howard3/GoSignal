@@ -29,6 +29,10 @@ func (mq *MemoryQueue) Send(messageType string, message []byte) error {
 }
 
 func (mq *MemoryQueue) Subscribe(messageType string) (string, chan gosignal.QueueMessage, error) {
+	if mq.Queue == nil {
+		mq.Queue = make(map[string]map[uint]chan gosignal.QueueMessage, 0)
+	}
+
 	if _, ok := mq.Queue[messageType]; !ok {
 		mq.Queue[messageType] = make(map[uint]chan gosignal.QueueMessage, 0)
 	}
