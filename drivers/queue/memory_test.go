@@ -1,11 +1,11 @@
 package queue
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
 	"github.com/Howard3/gosignal"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSubscribeNewMessageType(t *testing.T) {
@@ -13,9 +13,15 @@ func TestSubscribeNewMessageType(t *testing.T) {
 	messageType := "testType"
 
 	_, ch, err := mq.Subscribe(messageType)
-	assert.NoError(t, err)
-	assert.NotNil(t, ch)
-	assert.Contains(t, mq.Queue, messageType)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ch == nil {
+		t.Fatal("Channel is nil")
+	}
+	if _, ok := mq.Queue[messageType]; !ok {
+		t.Fatal("Message type was not added to the queue")
+	}
 }
 
 func TestSendToExistingMessageType(t *testing.T) {
@@ -25,12 +31,17 @@ func TestSendToExistingMessageType(t *testing.T) {
 
 	go func() {
 		err := mq.Send(messageType, []byte("message"))
-		assert.NoError(t, err)
+		if err != nil {
+			t.Error(err)
+			t.Fail()
+		}
 	}()
 
 	select {
 	case msg := <-ch:
-		assert.NotNil(t, msg)
+		if msg == nil {
+			t.Fatal("Received message is nil")
+		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("Expected message was not received")
 	}
@@ -39,7 +50,9 @@ func TestSendToExistingMessageType(t *testing.T) {
 func TestSendToNonExistingMessageType(t *testing.T) {
 	mq := &MemoryQueue{Queue: make(map[string]map[uint]chan gosignal.QueueMessage)}
 	err := mq.Send("nonExistingType", []byte("message"))
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("Expected error was not received")
+	}
 }
 
 func TestUnsubscribe(t *testing.T) {
@@ -48,14 +61,28 @@ func TestUnsubscribe(t *testing.T) {
 	id, _, _ := mq.Subscribe(messageType)
 
 	err := mq.Unsubscribe(messageType, id)
-	assert.NoError(t, err)
-	assert.NotContains(t, mq.Queue[messageType], id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// check if the messageType has the ID removed
+	iid, err := strconv.Atoi(id)
+	if err != nil {
+		t.Log("failed to convert id to string")
+		t.Fatal(err)
+	}
+	if _, ok := mq.Queue[messageType][uint(iid)]; ok {
+		t.Fatal("ID was not removed from the messageType")
+	}
 
 	// Test for non-existing messageType
 	err = mq.Unsubscribe("nonExistingType", "123")
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("Expected error was not received")
+	}
 
 	// Test for non-existing ID
 	err = mq.Unsubscribe(messageType, "nonExistingID")
-	assert.Error(t, err)
+	if err == nil {
+		t.Fatal("Expected error was not received")
+	}
 }
