@@ -16,7 +16,8 @@ var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 // it is highly opinionated and expects there to be columns matching the sourcing.Snapshot struct
 // that means there will be a column for the id, version, and data, and timestamp
 // Further, every aggregate must have its own table as there is no "aggregate type" column
-// an Example table might look like this:
+// it should use a schema that matches the following:
+// ```sql
 // CREATE TABLE IF NOT EXISTS "snapshots" (
 //
 //	"id" TEXT PRIMARY KEY,
@@ -25,6 +26,7 @@ var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 //	"timestamp" TIMESTAMP WITH TIME ZONE NOT NULL
 //
 // );
+// ```
 type SQLStore struct {
 	db        *sql.DB
 	TableName string
