@@ -9,6 +9,9 @@ import (
 	"github.com/Howard3/gosignal/sourcing"
 )
 
+// ErrTableNameNotSet is returned when the table name is not set
+var ErrTableNameNotSet = fmt.Errorf("table name not set")
+
 // ErrLoadingSnapshot is returned when a snapshot cannot be loaded
 var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 
@@ -34,6 +37,10 @@ type SQLStore struct {
 
 // Load loads a snapshot from the store
 func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, error) {
+	if ss.TableName == "" {
+		return nil, ErrTableNameNotSet
+	}
+
 	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = $1", ss.TableName)
 	snapshot := sourcing.Snapshot{}
 
@@ -51,6 +58,9 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 
 // Store stores a snapshot in the store
 func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourcing.Snapshot) error {
+	if ss.TableName == "" {
+		return ErrTableNameNotSet
+	}
 	query := fmt.Sprintf("INSERT INTO %s (id, version, data, timestamp) VALUES ($1, $2, $3, $4)", ss.TableName)
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, snapshot.Timestamp)
 	return err
@@ -58,7 +68,11 @@ func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourc
 
 // Delete deletes a snapshot from the store
 func (ss SQLStore) Delete(ctx context.Context, aggregateID string) error {
-	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", ss.TableName)
+	if ss.TableName == "" {
+		return ErrTableNameNotSet
+	}
+
+	 query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", ss.TableName)
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID)
 	return err
 }

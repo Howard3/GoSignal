@@ -95,6 +95,10 @@ func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts
 	var err error
 	var snapshot *Snapshot
 
+	if opts == nil {
+		opts = NewRepoLoaderConfigurator().Build()
+	}
+
 	if !opts.skipSnapshot {
 		snapshot, err = r.snapshotLoader(ctx, aggID)
 		if err != nil {
