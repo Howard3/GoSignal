@@ -10,9 +10,3 @@ type Event struct {
 	Timestamp   time.Time // Timestamp of the event
 	AggregateID string    // AggregateID of the event
 }
-
-// ToNotificationProto converts the event to a notification protobuf byte slice
-func (e Event) ToNotificationProto() []byte {
-	// TODO: implement
-	panic("not implemented")
-}

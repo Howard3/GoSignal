@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Howard3/gosignal"
 	"github.com/Howard3/gosignal/sourcing"
@@ -19,16 +20,16 @@ var ErrTableNameNotSet = errors.New("table name not set")
 //
 // it should use a schema that matches the following:
 // ```sql
-// CREATE TABLE events (
 //
-//	id SERIAL PRIMARY KEY,
-//	type VARCHAR(255) NOT NULL,
-//	data BYTEA NOT NULL,
-//	version INT NOT NULL,
-//	timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-//	aggregate_id VARCHAR(255) NOT NULL
+//	CREATE TABLE events (
+//		id SERIAL PRIMARY KEY,
+//		type VARCHAR(255) NOT NULL,
+//		data BYTEA NOT NULL,
+//		version INT NOT NULL,
+//		timestamp INT NOT NULL,
+//		aggregate_id VARCHAR(255) NOT NULL
+//	);
 //
-// );
 // ```
 type SQLStore struct {
 	DB        *sql.DB
@@ -52,7 +53,9 @@ func (ss SQLStore) Store(ctx context.Context, events []gosignal.Event) error {
 	}
 
 	for _, event := range events {
-		_, err := tx.ExecContext(ctx, query, event.Type, event.Data, event.Version, event.Timestamp, event.AggregateID)
+		eventTimestamp := event.Timestamp.Unix()
+
+		_, err := tx.ExecContext(ctx, query, event.Type, event.Data, event.Version, eventTimestamp, event.AggregateID)
 		if err != nil {
 			return errors.Join(err, tx.Rollback())
 		}
@@ -79,9 +82,14 @@ func (ss SQLStore) Load(ctx context.Context, aggID string, options sourcing.Load
 	var events []gosignal.Event
 	for rows.Next() {
 		var event gosignal.Event
-		if err := rows.Scan(&event.Type, &event.Data, &event.Version, &event.Timestamp); err != nil {
+		var timestamp int
+		if err := rows.Scan(&event.Type, &event.Data, &event.Version, &timestamp); err != nil {
 			return nil, err
 		}
+
+		event.Timestamp = time.Unix(int64(timestamp), 0)
+		event.AggregateID = aggID
+
 		events = append(events, event)
 	}
 
@@ -95,7 +103,9 @@ func (ss SQLStore) Replace(ctx context.Context, id string, version uint, event g
 		return ErrTableNameNotSet
 	}
 
+	eventTimestamp := event.Timestamp.Unix()
+
 	query := fmt.Sprintf("UPDATE %s SET type = $1, data = $2, version = $3, timestamp = $4 WHERE id = $5", ss.TableName)
-	_, err := ss.DB.ExecContext(ctx, query, event.Type, event.Data, event.Version, event.Timestamp, id)
+	_, err := ss.DB.ExecContext(ctx, query, event.Type, event.Data, event.Version, eventTimestamp, id)
 	return err
 }

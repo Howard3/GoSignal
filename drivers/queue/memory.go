@@ -14,7 +14,7 @@ type MemoryQueue struct {
 
 func (mq *MemoryQueue) Send(messageType string, message []byte) error {
 	if _, ok := mq.Queue[messageType]; !ok {
-		return fmt.Errorf("message type %s not found", messageType)
+		return nil // no subscribers, nothing to do.
 	}
 
 	for _, ch := range mq.Queue[messageType] {
