@@ -119,7 +119,7 @@ func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts
 		newMinVersion := snapshot.Version + 1
 		opts.lev.MinVersion = &newMinVersion
 
-		if err = agg.ImportState(snapshot.Data); err != nil {
+		if err = agg.ImportState(snapshot); err != nil {
 			return errors.Join(ErrFailedToLoadSnapshot, err)
 		}
 	}

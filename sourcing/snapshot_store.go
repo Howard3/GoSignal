@@ -22,9 +22,10 @@ var ErrFailedToExportState = errors.New("failed to export state")
 
 // Snapshot is a snapshot of the state of an aggregate
 type Snapshot struct {
-	Data      []byte    `json:"data"`
-	Timestamp time.Time `json:"timestamp"`
-	Version   uint      `json:"version"`
+	AggregateID string    `json:"aggregate_id"`
+	Data        []byte    `json:"data"`
+	Timestamp   time.Time `json:"timestamp"`
+	Version     uint      `json:"version"`
 }
 
 // SnapshotStrategy is an adaptable strategy for when to take a snapshot
