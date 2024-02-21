@@ -95,7 +95,7 @@ func (r *Repository) Store(ctx context.Context, events []gosignal.Event) error {
 }
 
 // Load loads an aggregate from the event store, reconstructing it from its events and snapshot
-func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts *RepoLoadOptions) error {
+func (r *Repository) Load(ctx context.Context, agg Aggregate, opts *RepoLoadOptions) error {
 	var err error
 	var snapshot *Snapshot
 
@@ -104,7 +104,7 @@ func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts
 	}
 
 	if !opts.skipSnapshot {
-		snapshot, err = r.snapshotLoader(ctx, aggID)
+		snapshot, err = r.snapshotLoader(ctx, agg.GetID())
 		if err != nil {
 			return err
 		}
@@ -119,26 +119,37 @@ func (r *Repository) Load(ctx context.Context, aggID string, agg Aggregate, opts
 		newMinVersion := snapshot.Version + 1
 		opts.lev.MinVersion = &newMinVersion
 
-		if err = agg.ImportState(snapshot); err != nil {
+		if err = r.importState(ctx, agg, snapshot); err != nil {
 			return errors.Join(ErrFailedToLoadSnapshot, err)
 		}
 	}
 
-	events, err := r.LoadEvents(ctx, aggID, opts)
+	events, err := r.LoadEvents(ctx, agg.GetID(), opts)
 	if err != nil {
 		return errors.Join(ErrLoadingEvents, err)
 	}
 
-	if err := r.applyEvents(agg, events); err != nil {
+	if err := r.ApplyEvents(agg, events); err != nil {
 		return errors.Join(ErrApplyingEvent, err)
 	}
 
 	skipSnapshot := opts.skipSnapshot || r.snapshotStrategy == nil
 	if !skipSnapshot && r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
-		if err := r.generateSnapshot(ctx, aggID, agg); err != nil {
+		if err := r.generateSnapshot(ctx, agg.GetID(), agg); err != nil {
 			return errors.Join(ErrSnapshotFailed, err)
 		}
 	}
+
+	return nil
+}
+
+func (r *Repository) importState(ctx context.Context, agg Aggregate, snapshot *Snapshot) error {
+	if err := agg.ImportState(snapshot.Data); err != nil {
+		return errors.Join(ErrFailedToLoadSnapshot, err)
+	}
+
+	agg.SetVersion(snapshot.Version)
+	agg.SetID(snapshot.ID)
 
 	return nil
 }
@@ -156,7 +167,8 @@ func (r *Repository) generateSnapshot(ctx context.Context, aggID string, agg Agg
 	ss := Snapshot{
 		Data:      state,
 		Timestamp: time.Now(),
-		Version:   agg.Version(),
+		Version:   agg.GetVersion(),
+		ID:        agg.GetID(),
 	}
 
 	if err := r.snapshotStrategy.GetStore().Store(ctx, aggID, ss); err != nil {
@@ -179,9 +191,10 @@ func (r *Repository) snapshotLoader(ctx context.Context, aggID string) (*Snapsho
 	return snapshot, nil
 }
 
-func (r *Repository) applyEvents(aggregate Aggregate, events []gosignal.Event) error {
+// ApplyEvents iteratively applies events to an aggregate
+func (r *Repository) ApplyEvents(agg Aggregate, events []gosignal.Event) error {
 	for _, event := range events {
-		if err := aggregate.Apply(event); err != nil {
+		if err := agg.Apply(event); err != nil {
 			return errors.Join(ErrApplyingEvent, err)
 		}
 	}
@@ -203,8 +216,8 @@ func (r *Repository) LoadEvents(ctx context.Context, aggregateID string, opts *R
 // legal compliance reasons, otherwise your event store should be append-only
 // NOTE: Pass an empty aggregate in, as this function will replay all events on the aggregate
 // and apply the new event, this is to ensure that the aggregate is in the correct state
-func (r *Repository) ReplaceVersion(ctx context.Context, aggID string, agg Aggregate, v uint, e gosignal.Event) error {
-	opts := NewRepoLoaderConfigurator().MaxVersion(v).Build()
+func (r *Repository) ReplaceVersion(ctx context.Context, aggID string, agg Aggregate, ver uint, e gosignal.Event) error {
+	opts := NewRepoLoaderConfigurator().MaxVersion(ver).Build()
 	events, err := r.LoadEvents(ctx, aggID, opts)
 	if err != nil {
 		return errors.Join(ErrReplacingVersion, err)
@@ -214,17 +227,17 @@ func (r *Repository) ReplaceVersion(ctx context.Context, aggID string, agg Aggre
 		return ErrNoEvents
 	}
 
-	events, err = r.replaceVersionInEventSlice(events, v, e)
+	events, err = r.replaceVersionInEventSlice(events, ver, e)
 	if err != nil {
 		return errors.Join(ErrReplacingVersion, err)
 	}
 
 	// attempt to replay all events on the aggregate
-	if err := r.applyEvents(agg, events); err != nil {
+	if err := r.ApplyEvents(agg, events); err != nil {
 		return errors.Join(ErrReplacingVersion, err)
 	}
 
-	if err := r.eventStore.Replace(ctx, aggID, v, e); err != nil {
+	if err := r.eventStore.Replace(ctx, aggID, ver, e); err != nil {
 		return errors.Join(ErrReplacingVersion, err)
 	}
 
