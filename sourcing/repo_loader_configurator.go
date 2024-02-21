@@ -25,14 +25,14 @@ func NewRepoLoaderConfigurator() *RepoLoaderConfigurator {
 // MinVersion sets the minimum version of the aggregate to load and returns the configurator.
 // NOTE: this will lead to inconsistent state if you're loading against an aggregate. Only use
 // this if you're directly querying events.
-func (c *RepoLoaderConfigurator) MinVersion(version uint) *RepoLoaderConfigurator {
+func (c *RepoLoaderConfigurator) MinVersion(version uint64) *RepoLoaderConfigurator {
 	c.loadOptions.lev.MinVersion = &version
 	return c
 }
 
 // MaxVersion sets the maximum version of the aggregate to load and returns the configurator.
 // can be used to load a specific version of the aggregate
-func (c *RepoLoaderConfigurator) MaxVersion(version uint) *RepoLoaderConfigurator {
+func (c *RepoLoaderConfigurator) MaxVersion(version uint64) *RepoLoaderConfigurator {
 	c.loadOptions.lev.MaxVersion = &version
 	return c
 }

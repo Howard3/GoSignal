@@ -6,7 +6,7 @@ import "time"
 type Event struct {
 	Type        string    // Type of event
 	Data        []byte    // Data of the event
-	Version     uint      // Version of the event
+	Version     uint64    // Version of the event
 	Timestamp   time.Time // Timestamp of the event
 	AggregateID string    // AggregateID of the event
 }

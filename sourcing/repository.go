@@ -129,6 +129,10 @@ func (r *Repository) Load(ctx context.Context, agg Aggregate, opts *RepoLoadOpti
 		return errors.Join(ErrLoadingEvents, err)
 	}
 
+	if len(events) == 0 {
+		return ErrNoEvents
+	}
+
 	if err := r.ApplyEvents(agg, events); err != nil {
 		return errors.Join(ErrApplyingEvent, err)
 	}
@@ -216,7 +220,7 @@ func (r *Repository) LoadEvents(ctx context.Context, aggregateID string, opts *R
 // legal compliance reasons, otherwise your event store should be append-only
 // NOTE: Pass an empty aggregate in, as this function will replay all events on the aggregate
 // and apply the new event, this is to ensure that the aggregate is in the correct state
-func (r *Repository) ReplaceVersion(ctx context.Context, aggID string, agg Aggregate, ver uint, e gosignal.Event) error {
+func (r *Repository) ReplaceVersion(ctx context.Context, aggID string, agg Aggregate, ver uint64, e gosignal.Event) error {
 	opts := NewRepoLoaderConfigurator().MaxVersion(ver).Build()
 	events, err := r.LoadEvents(ctx, aggID, opts)
 	if err != nil {
@@ -244,7 +248,7 @@ func (r *Repository) ReplaceVersion(ctx context.Context, aggID string, agg Aggre
 	return nil
 }
 
-func (r *Repository) replaceVersionInEventSlice(events []gosignal.Event, v uint, e gosignal.Event) ([]gosignal.Event, error) {
+func (r *Repository) replaceVersionInEventSlice(events []gosignal.Event, v uint64, e gosignal.Event) ([]gosignal.Event, error) {
 	for i, event := range events {
 		if event.Version == v {
 			events[i] = e

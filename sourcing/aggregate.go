@@ -19,9 +19,9 @@ var ErrApplyFailed = fmt.Errorf("failed to apply event")
 // For ID and Version, the DefaultAggregate struct can be embedded to provide default implementations
 type Aggregate interface {
 	SetID(string)
-	SetVersion(uint)
+	SetVersion(uint64)
 	GetID() string
-	GetVersion() uint
+	GetVersion() uint64
 	Apply(gosignal.Event) error
 	ImportState([]byte) error
 	ExportState() ([]byte, error)
@@ -30,7 +30,7 @@ type Aggregate interface {
 // DefaultAggregate is a struct that can be embedded in an aggregate to provide default implementations
 type DefaultAggregate struct {
 	ID      string // ID of the aggregate
-	Version uint   // Version of the aggregate
+	Version uint64 // Version of the aggregate
 }
 
 // SetID sets the id of the aggregate
@@ -39,7 +39,7 @@ func (a *DefaultAggregate) SetID(id string) {
 }
 
 // SetVersion sets the version of the aggregate
-func (a *DefaultAggregate) SetVersion(version uint) {
+func (a *DefaultAggregate) SetVersion(version uint64) {
 	a.Version = version
 }
 
@@ -49,7 +49,7 @@ func (a *DefaultAggregate) GetID() string {
 }
 
 // GetVersion returns the version of the aggregate
-func (a *DefaultAggregate) GetVersion() uint {
+func (a *DefaultAggregate) GetVersion() uint64 {
 	return a.Version
 }
 
@@ -66,7 +66,7 @@ func SafeApply(event gosignal.Event, agg Aggregate, applyFn func(gosignal.Event)
 		}
 
 		if err != nil {
-			err = errors.Join(ErrApplyFailed, err)
+			err = errors.Join(fmt.Errorf("event: %q", event.Type), ErrApplyFailed, err)
 		}
 	}()
 

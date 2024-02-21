@@ -98,7 +98,7 @@ func (ss SQLStore) Load(ctx context.Context, aggID string, options sourcing.Load
 
 // Replace replaces an event with a new version, this mostly exists for legal compliance
 // purposes, your event store should be append-only
-func (ss SQLStore) Replace(ctx context.Context, id string, version uint, event gosignal.Event) error {
+func (ss SQLStore) Replace(ctx context.Context, id string, version uint64, event gosignal.Event) error {
 	if ss.TableName == "" {
 		return ErrTableNameNotSet
 	}

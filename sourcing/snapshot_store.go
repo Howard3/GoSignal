@@ -24,7 +24,7 @@ var ErrFailedToExportState = errors.New("failed to export state")
 type Snapshot struct {
 	Data      []byte
 	Timestamp time.Time
-	Version   uint
+	Version   uint64
 	ID        string
 }
 
