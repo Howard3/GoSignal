@@ -1,5 +1,6 @@
 # GoSignal
 
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/howard3/Gosignal)
 [![Go Report Card](https://goreportcard.com/badge/github.com/Howard3/GoSignal)](https://goreportcard.com/report/github.com/Howard3/GoSignal)
 ![GitHub license](https://img.shields.io/github/license/Howard3/GoSignal)
 ![GitHub stars](https://img.shields.io/github/stars/Howard3/GoSignal?style=social)
