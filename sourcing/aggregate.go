@@ -3,6 +3,7 @@ package sourcing
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/Howard3/gosignal"
 )
@@ -29,8 +30,8 @@ type Aggregate interface {
 
 // DefaultAggregate is a struct that can be embedded in an aggregate to provide default implementations
 type DefaultAggregate struct {
-	ID      string // ID of the aggregate
-	Version uint64 // Version of the aggregate
+	DefaultAggregateVersionManager
+	ID string // ID of the aggregate
 }
 
 // SetID sets the id of the aggregate
@@ -38,18 +39,51 @@ func (a *DefaultAggregate) SetID(id string) {
 	a.ID = id
 }
 
-// SetVersion sets the version of the aggregate
-func (a *DefaultAggregate) SetVersion(version uint64) {
-	a.Version = version
-}
-
 // GetID returns the id of the aggregate
 func (a *DefaultAggregate) GetID() string {
 	return a.ID
 }
 
-// GetVersion returns the version of the aggregate
-func (a *DefaultAggregate) GetVersion() uint64 {
+// DefaultAggregateUint64 is a struct that can be embedded in an aggregate to provide default implementations
+// for the ID field as a uint64
+type DefaultAggregateUint64 struct {
+	DefaultAggregateVersionManager
+	ID uint64 // ID of the aggregate
+}
+
+// SetID sets the id of the aggregate
+func (a *DefaultAggregateUint64) SetID(id string) {
+	s, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		// NOTE: Determine if this is the best way to handle this error
+		panic(fmt.Errorf("DefaultAggregateUint64 failed to parse id: %s", id))
+	}
+
+	a.ID = s
+}
+
+// GetID returns the id of the aggregate
+func (a *DefaultAggregateUint64) GetID() string {
+	return strconv.FormatUint(a.ID, 10)
+}
+
+func (a *DefaultAggregateUint64) GetIDUint64() uint64 {
+	return a.ID
+}
+
+func (a *DefaultAggregateUint64) SetIDUint64(id uint64) {
+	a.ID = id
+}
+
+type DefaultAggregateVersionManager struct {
+	Version uint64
+}
+
+func (a *DefaultAggregateVersionManager) SetVersion(version uint64) {
+	a.Version = version
+}
+
+func (a *DefaultAggregateVersionManager) GetVersion() uint64 {
 	return a.Version
 }
 
