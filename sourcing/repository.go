@@ -116,7 +116,7 @@ func (r *Repository) Load(ctx context.Context, agg Aggregate, opts *RepoLoadOpti
 	opts.skipSnapshot = opts.skipSnapshot || maxVerLowerThanSnapshot
 
 	if !maxVerLowerThanSnapshot && snapshot != nil {
-		newMinVersion := snapshot.Version + 1
+		newMinVersion := snapshot.Version
 		opts.lev.MinVersion = &newMinVersion
 
 		if err = r.importState(ctx, agg, snapshot); err != nil {
