@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/Howard3/gosignal"
@@ -13,6 +14,38 @@ import (
 
 // ErrTableNameNotSet is the error returned when the table name is not set
 var ErrTableNameNotSet = errors.New("table name not set")
+
+type conditionBuilder struct {
+	args []string
+	opts []interface{}
+}
+
+func (cb *conditionBuilder) add(arg string, opt interface{}) {
+	cb.args = append(cb.args, arg)
+	cb.opts = append(cb.opts, opt)
+}
+
+// addIfNotNil adds a condition if the value is not nil
+func (cb *conditionBuilder) addIfNotNil(arg string, opt interface{}) {
+	if !reflect.ValueOf(opt).IsNil() { // don't know the interface, so we have to use reflection
+		cb.add(arg, opt)
+	}
+}
+
+func (cb *conditionBuilder) build() string {
+	conditions := ""
+
+	for i, v := range cb.args {
+		if i == 0 {
+			conditions += " WHERE "
+		} else {
+			conditions += " AND "
+		}
+		conditions += fmt.Sprintf("%s $%d", v, i+1)
+	}
+
+	return conditions
+}
 
 // SQLStore is an opinionated store that uses a SQL database to store events
 // it mirrors the gosignal.Event struct for fields when storing the events. Only ony table must
@@ -57,6 +90,7 @@ func (ss SQLStore) Store(ctx context.Context, events []gosignal.Event) error {
 
 		_, err := tx.ExecContext(ctx, query, event.Type, event.Data, event.Version, eventTimestamp, event.AggregateID)
 		if err != nil {
+			err := fmt.Errorf("when trying to update aggregate %s with version %d: %w", event.AggregateID, event.Version, err)
 			return errors.Join(err, tx.Rollback())
 		}
 	}
@@ -65,13 +99,21 @@ func (ss SQLStore) Store(ctx context.Context, events []gosignal.Event) error {
 }
 
 // Load loads all events for a given aggregate id
+// TODO: support max version, event types, and to/from timestamps
 func (ss SQLStore) Load(ctx context.Context, aggID string, options sourcing.LoadEventsOptions) (evt []gosignal.Event, err error) {
 	if ss.TableName == "" {
 		return nil, ErrTableNameNotSet
 	}
+	query := fmt.Sprintf(`SELECT type, data, version, timestamp FROM %s`, ss.TableName)
 
-	query := fmt.Sprintf("SELECT type, data, version, timestamp FROM %s WHERE aggregate_id = $1", ss.TableName)
-	rows, err := ss.DB.QueryContext(ctx, query, aggID)
+	cb := conditionBuilder{}
+	cb.add("aggregate_id =", aggID)
+	cb.addIfNotNil("version >=", options.MinVersion)
+	cb.addIfNotNil("version <=", options.MaxVersion)
+
+	query += cb.build()
+
+	rows, err := ss.DB.QueryContext(ctx, query, cb.opts...)
 	if err != nil {
 		return nil, err
 	}

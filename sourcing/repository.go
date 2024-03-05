@@ -129,7 +129,7 @@ func (r *Repository) Load(ctx context.Context, agg Aggregate, opts *RepoLoadOpti
 		return errors.Join(ErrLoadingEvents, err)
 	}
 
-	if len(events) == 0 {
+	if len(events) == 0 && snapshot == nil {
 		return ErrNoEvents
 	}
 
@@ -207,6 +207,10 @@ func (r *Repository) ApplyEvents(agg Aggregate, events []gosignal.Event) error {
 
 // LoadEvents loads events from the event store
 func (r *Repository) LoadEvents(ctx context.Context, aggregateID string, opts *RepoLoadOptions) ([]gosignal.Event, error) {
+	if opts == nil {
+		opts = NewRepoLoaderConfigurator().Build()
+	}
+
 	event, err := r.eventStore.Load(ctx, aggregateID, *opts.lev)
 	if err != nil {
 		return nil, errors.Join(ErrLoadingEvents, err)

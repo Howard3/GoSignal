@@ -28,7 +28,7 @@ var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 //		"id" TEXT PRIMARY KEY,
 //		"version" INTEGER NOT NULL,
 //		"data" JSONB NOT NULL,
-//		"timestamp" INT NOT NULL,
+//		"timestamp" INT NOT NULL
 //	);
 //
 // ```
@@ -44,11 +44,11 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 	}
 
 	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = $1", ss.TableName)
-	snapshot := sourcing.Snapshot{}
+	snapshot := sourcing.Snapshot{ID: id}
 	var timestamp int
 
 	row := ss.DB.QueryRowContext(ctx, query, id)
-	if err := row.Scan(&snapshot.Data, &snapshot.Version, timestamp); err != nil {
+	if err := row.Scan(&snapshot.Data, &snapshot.Version, &timestamp); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
