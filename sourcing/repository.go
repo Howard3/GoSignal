@@ -3,6 +3,7 @@ package sourcing
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Howard3/gosignal"
@@ -110,18 +111,8 @@ func (r *Repository) Load(ctx context.Context, agg Aggregate, opts *RepoLoadOpti
 		}
 	}
 
-	// we need to not use the snapshot, and skip snapshot generation if the max version is lower
-	// than the snapshot
-	maxVerLowerThanSnapshot := opts.lev.MaxVersion != nil && snapshot.Version > *opts.lev.MaxVersion
-	opts.skipSnapshot = opts.skipSnapshot || maxVerLowerThanSnapshot
-
-	if !maxVerLowerThanSnapshot && snapshot != nil {
-		newMinVersion := snapshot.Version
-		opts.lev.MinVersion = &newMinVersion
-
-		if err = r.importState(ctx, agg, snapshot); err != nil {
-			return errors.Join(ErrFailedToLoadSnapshot, err)
-		}
+	if err := r.applySnapshot(ctx, agg, snapshot, opts); err != nil {
+		return fmt.Errorf("error applying snapshot: %w", err)
 	}
 
 	events, err := r.LoadEvents(ctx, agg.GetID(), opts)
@@ -141,6 +132,26 @@ func (r *Repository) Load(ctx context.Context, agg Aggregate, opts *RepoLoadOpti
 	if !skipSnapshot && r.snapshotStrategy.ShouldSnapshot(snapshot, events) {
 		if err := r.generateSnapshot(ctx, agg.GetID(), agg); err != nil {
 			return errors.Join(ErrSnapshotFailed, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *Repository) applySnapshot(ctx context.Context, agg Aggregate, ss *Snapshot, opts *RepoLoadOptions) error {
+	var err error
+
+	// we need to not use the snapshot, and skip snapshot generation if the max version is lower
+	// than the snapshot
+	maxVerLowerThanSnapshot := opts.lev.MaxVersion != nil && ss.Version > *opts.lev.MaxVersion
+	opts.skipSnapshot = opts.skipSnapshot || maxVerLowerThanSnapshot
+
+	if !maxVerLowerThanSnapshot && ss != nil {
+		newMinVersion := ss.Version
+		opts.lev.MinVersion = &newMinVersion
+
+		if err = r.importState(ctx, agg, ss); err != nil {
+			return errors.Join(ErrFailedToLoadSnapshot, err)
 		}
 	}
 

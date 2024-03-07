@@ -69,7 +69,10 @@ func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourc
 
 	ssTimestamp := snapshot.Timestamp.Unix()
 
-	query := fmt.Sprintf("INSERT INTO %s (id, version, data, timestamp) VALUES ($1, $2, $3, $4)", ss.TableName)
+	query := fmt.Sprintf(`INSERT INTO %s (id, version, data, timestamp) 
+		VALUES ($1, $2, $3, $4)
+		ON CONFLICT (id) DO UPDATE SET version = $2, data = $3, timestamp = $4
+	`, ss.TableName)
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, ssTimestamp)
 	return err
 }
