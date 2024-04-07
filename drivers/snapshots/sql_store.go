@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Howard3/gosignal/sourcing"
@@ -33,8 +34,20 @@ var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 //
 // ```
 type SQLStore struct {
-	DB        *sql.DB
-	TableName string
+	DB                      *sql.DB
+	TableName               string
+	PositionalPlaceholderFn func(int) string
+}
+
+func PositionalPlaceholderDollarSign(i int) string {
+	return fmt.Sprintf("$%d", i)
+}
+
+func (ss SQLStore) pph(i int) string {
+	if ss.PositionalPlaceholderFn != nil {
+		return ss.PositionalPlaceholderFn(i)
+	}
+	return PositionalPlaceholderDollarSign(i)
 }
 
 // Load loads a snapshot from the store
@@ -43,7 +56,7 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 		return nil, ErrTableNameNotSet
 	}
 
-	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = $1", ss.TableName)
+	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = %s", ss.TableName, ss.pph(1))
 	snapshot := sourcing.Snapshot{ID: id}
 	var timestamp int
 
@@ -70,9 +83,12 @@ func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourc
 	ssTimestamp := snapshot.Timestamp.Unix()
 
 	query := fmt.Sprintf(`INSERT INTO %s (id, version, data, timestamp) 
-		VALUES ($1, $2, $3, $4)
-		ON CONFLICT (id) DO UPDATE SET version = $2, data = $3, timestamp = $4
-	`, ss.TableName)
+		VALUES (%s)
+		ON CONFLICT (id) DO UPDATE SET version = %s, data = %s, timestamp = %s 
+	`, ss.TableName,
+		strings.Join([]string{ss.pph(1), ss.pph(2), ss.pph(3), ss.pph(4)}, ", "),
+		ss.pph(2), ss.pph(3), ss.pph(4),
+	)
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, ssTimestamp)
 	return err
 }
@@ -83,7 +99,7 @@ func (ss SQLStore) Delete(ctx context.Context, aggregateID string) error {
 		return ErrTableNameNotSet
 	}
 
-	query := fmt.Sprintf("DELETE FROM %s WHERE id = $1", ss.TableName)
+	query := fmt.Sprintf("DELETE FROM %s WHERE id = %s", ss.TableName, ss.pph(1))
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID)
 	return err
 }
