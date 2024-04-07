@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/Howard3/gosignal"
@@ -18,6 +19,7 @@ var ErrTableNameNotSet = errors.New("table name not set")
 type conditionBuilder struct {
 	args []string
 	opts []interface{}
+	pph  func(int) string
 }
 
 func (cb *conditionBuilder) add(arg string, opt interface{}) {
@@ -41,7 +43,7 @@ func (cb *conditionBuilder) build() string {
 		} else {
 			conditions += " AND "
 		}
-		conditions += fmt.Sprintf("%s $%d", v, i+1)
+		conditions += fmt.Sprintf("%s %s", v, cb.pph(i+1))
 	}
 
 	return conditions
@@ -65,8 +67,20 @@ func (cb *conditionBuilder) build() string {
 //
 // ```
 type SQLStore struct {
-	DB        *sql.DB
-	TableName string
+	DB                      *sql.DB
+	TableName               string
+	PositionalPlaceholderFn func(int) string
+}
+
+func PositionalPlaceholderDollarSign(i int) string {
+	return fmt.Sprintf("$%d", i)
+}
+
+func (ss SQLStore) pph(i int) string {
+	if ss.PositionalPlaceholderFn != nil {
+		return ss.PositionalPlaceholderFn(i)
+	}
+	return PositionalPlaceholderDollarSign(i)
 }
 
 // Store stores a list of events for a given aggregate id
@@ -75,10 +89,12 @@ func (ss SQLStore) Store(ctx context.Context, events []gosignal.Event) error {
 		return ErrTableNameNotSet
 	}
 
+	placeholders := []string{ss.pph(1), ss.pph(2), ss.pph(3), ss.pph(4), ss.pph(5)}
+
 	query := fmt.Sprintf(`
 		INSERT INTO %s (type, data, version, timestamp, aggregate_id) 
-		VALUES ($1, $2, $3, $4, $5)`,
-		ss.TableName)
+		VALUES (%s)`,
+		ss.TableName, strings.Join(placeholders, ", "))
 
 	tx, err := ss.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -106,7 +122,12 @@ func (ss SQLStore) Load(ctx context.Context, aggID string, options sourcing.Load
 	}
 	query := fmt.Sprintf(`SELECT type, data, version, timestamp FROM %s`, ss.TableName)
 
-	cb := conditionBuilder{}
+	pph := ss.PositionalPlaceholderFn
+	if pph == nil {
+		pph = PositionalPlaceholderDollarSign
+	}
+
+	cb := conditionBuilder{pph: pph}
 	cb.add("aggregate_id =", aggID)
 	cb.addIfNotNil("version >=", options.MinVersion)
 	cb.addIfNotNil("version <=", options.MaxVersion)
@@ -147,7 +168,10 @@ func (ss SQLStore) Replace(ctx context.Context, id string, version uint64, event
 
 	eventTimestamp := event.Timestamp.Unix()
 
-	query := fmt.Sprintf("UPDATE %s SET type = $1, data = $2, version = $3, timestamp = $4 WHERE id = $5", ss.TableName)
+	query := fmt.Sprintf("UPDATE %s SET type = %s, data = %s, version = %s, timestamp = %s WHERE id = %s",
+		ss.TableName,
+		ss.pph(1), ss.pph(2), ss.pph(3), ss.pph(4), ss.pph(5),
+	)
 	_, err := ss.DB.ExecContext(ctx, query, event.Type, event.Data, event.Version, eventTimestamp, id)
 	return err
 }
