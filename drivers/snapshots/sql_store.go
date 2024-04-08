@@ -22,32 +22,18 @@ var ErrLoadingSnapshot = fmt.Errorf("error loading snapshot")
 // that means there will be a column for the id, version, and data, and timestamp
 // Further, every aggregate must have its own table as there is no "aggregate type" column
 // it should use a schema that matches the following:
-//
-// ```sql
-//
-//	CREATE TABLE IF NOT EXISTS "snapshots" (
-//		"id" TEXT PRIMARY KEY,
-//		"version" INTEGER NOT NULL,
-//		"data" JSONB NOT NULL,
-//		"timestamp" INT NOT NULL
-//	);
-//
-// ```
 type SQLStore struct {
-	DB                      *sql.DB
-	TableName               string
-	PositionalPlaceholderFn func(int) string
+	DB                   *sql.DB
+	TableName            string
+	NamedParamsTemplater func(string) string
 }
 
-func PositionalPlaceholderDollarSign(i int) string {
-	return fmt.Sprintf("$%d", i)
-}
-
-func (ss SQLStore) pph(i int) string {
-	if ss.PositionalPlaceholderFn != nil {
-		return ss.PositionalPlaceholderFn(i)
+// pph returns a named parameter placeholder for the given name
+func (ss SQLStore) pph(name string) string {
+	if ss.NamedParamsTemplater == nil {
+		ss.NamedParamsTemplater = func(name string) string { return fmt.Sprintf(":%s", name) }
 	}
-	return PositionalPlaceholderDollarSign(i)
+	return ss.NamedParamsTemplater(name)
 }
 
 // Load loads a snapshot from the store
@@ -56,7 +42,7 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 		return nil, ErrTableNameNotSet
 	}
 
-	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = %s", ss.TableName, ss.pph(1))
+	query := fmt.Sprintf("SELECT data, version, timestamp FROM %s WHERE id = %s", ss.TableName, ss.pph("id"))
 	snapshot := sourcing.Snapshot{ID: id}
 	var timestamp int
 
@@ -86,8 +72,8 @@ func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourc
 		VALUES (%s)
 		ON CONFLICT (id) DO UPDATE SET version = %s, data = %s, timestamp = %s 
 	`, ss.TableName,
-		strings.Join([]string{ss.pph(1), ss.pph(2), ss.pph(3), ss.pph(4)}, ", "),
-		ss.pph(2), ss.pph(3), ss.pph(4),
+		strings.Join([]string{ss.pph("id"), ss.pph("version"), ss.pph("data"), ss.pph("timestamp")}, ", "),
+		ss.pph("version"), ss.pph("data"), ss.pph("timestamp"),
 	)
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, ssTimestamp)
 	return err
@@ -99,7 +85,7 @@ func (ss SQLStore) Delete(ctx context.Context, aggregateID string) error {
 		return ErrTableNameNotSet
 	}
 
-	query := fmt.Sprintf("DELETE FROM %s WHERE id = %s", ss.TableName, ss.pph(1))
+	query := fmt.Sprintf("DELETE FROM %s WHERE id = %s", ss.TableName, ss.pph("id"))
 	_, err := ss.DB.ExecContext(ctx, query, aggregateID)
 	return err
 }
