@@ -46,7 +46,7 @@ func (ss SQLStore) Load(ctx context.Context, id string) (*sourcing.Snapshot, err
 	snapshot := sourcing.Snapshot{ID: id}
 	var timestamp int
 
-	row := ss.DB.QueryRowContext(ctx, query, id)
+	row := ss.DB.QueryRowContext(ctx, query, sql.Named("id", id))
 	if err := row.Scan(&snapshot.Data, &snapshot.Version, &timestamp); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
@@ -75,7 +75,14 @@ func (ss SQLStore) Store(ctx context.Context, aggregateID string, snapshot sourc
 		strings.Join([]string{ss.pph("id"), ss.pph("version"), ss.pph("data"), ss.pph("timestamp")}, ", "),
 		ss.pph("version"), ss.pph("data"), ss.pph("timestamp"),
 	)
-	_, err := ss.DB.ExecContext(ctx, query, aggregateID, snapshot.Version, snapshot.Data, ssTimestamp)
+
+	_, err := ss.DB.ExecContext(ctx, query,
+		sql.Named("id", aggregateID),
+		sql.Named("version", snapshot.Version),
+		sql.Named("data", snapshot.Data),
+		sql.Named("timestamp", ssTimestamp),
+	)
+
 	return err
 }
 
@@ -86,6 +93,6 @@ func (ss SQLStore) Delete(ctx context.Context, aggregateID string) error {
 	}
 
 	query := fmt.Sprintf("DELETE FROM %s WHERE id = %s", ss.TableName, ss.pph("id"))
-	_, err := ss.DB.ExecContext(ctx, query, aggregateID)
+	_, err := ss.DB.ExecContext(ctx, query, sql.Named("id", aggregateID))
 	return err
 }
